@@ -1,0 +1,86 @@
+name: KBO 실시간 순위 동기화
+
+# KBO 공식 사이트에서 순위를 받아 Firebase(kbo-bet/kboRank)에 저장합니다.
+# 브라우저 CORS/프록시 없이 서버에서 직접 받아오므로 안정적입니다.
+# 앱은 Firebase 에서 읽기만 하므로, 앱을 안 켜놔도 '결과'가 항상 최신으로 유지됩니다.
+
+on:
+  schedule:
+    # cron 은 UTC 기준 (KST = UTC + 9)
+    - cron: '30 13 * * *'   # 22:30 KST  (경기 종료 직후)
+    - cron: '30 14 * * *'   # 23:30 KST  (지연 경기 대비)
+    - cron: '0 0 * * *'     # 09:00 KST  (전날 최종 순위 보정)
+  workflow_dispatch:          # 수동 실행 버튼
+
+# 동시에 여러 번 도는 것 방지
+concurrency:
+  group: kbo-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch KBO standings and push to Firebase
+        shell: python
+        run: |
+          import urllib.request, urllib.error, re, json, sys, time
+
+          KBO_URL = 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx'
+          DB_URL  = 'https://istar-bdc34-default-rtdb.firebaseio.com/kbo-bet/kboRank.json'
+          MAP = {
+            'KIA':'기아','KIA 타이거즈':'기아','기아':'기아','기아 타이거즈':'기아',
+            'LG':'LG','LG 트윈스':'LG','KT':'KT','KT 위즈':'KT',
+            '삼성':'삼성','삼성 라이온즈':'삼성','두산':'두산','두산 베어스':'두산',
+            'NC':'NC','NC 다이노스':'NC','SSG':'SSG','SSG 랜더스':'SSG',
+            '한화':'한화','한화 이글스':'한화','롯데':'롯데','롯데 자이언츠':'롯데',
+            '키움':'키움','키움 히어로즈':'키움',
+          }
+
+          def fetch():
+              req = urllib.request.Request(KBO_URL, headers={'User-Agent': 'Mozilla/5.0'})
+              return urllib.request.urlopen(req, timeout=30).read().decode('utf-8', 'replace')
+
+          def parse(html):
+              tb = re.search(r'<tbody>([\s\S]*?)</tbody>', html)
+              if not tb:
+                  return []
+              out = []
+              for row in re.findall(r'<tr>([\s\S]*?)</tr>', tb.group(1)):
+                  cells = re.findall(r'<td[^>]*>([\s\S]*?)</td>', row)
+                  if len(cells) < 2:
+                      continue
+                  name = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', cells[1])).strip()
+                  if name in MAP:
+                      out.append(MAP[name])
+              return out
+
+          # 네트워크/파싱 재시도 (최대 3회)
+          teams = []
+          for attempt in range(3):
+              try:
+                  teams = parse(fetch())
+                  if sum(1 for t in teams if t) >= 5:
+                      break
+              except Exception as e:
+                  print(f'fetch attempt {attempt+1} failed: {e}')
+              time.sleep(5)
+
+          if sum(1 for t in teams if t) < 5:
+              print('::error::KBO 순위 파싱 실패 — 페이지 구조가 바뀌었을 수 있음')
+              sys.exit(1)
+
+          teams = (teams + [''] * 10)[:10]
+          print('parsed:', json.dumps(teams, ensure_ascii=False))
+
+          # Firebase RTDB 의 kboRank 자식 노드만 갱신 (picks 는 건드리지 않음)
+          body = json.dumps(teams).encode()
+          req = urllib.request.Request(DB_URL, data=body, method='PUT',
+                                       headers={'Content-Type': 'application/json'})
+          try:
+              resp = urllib.request.urlopen(req, timeout=30).read().decode()
+              print('Firebase 저장 완료:', resp)
+          except urllib.error.HTTPError as e:
+              print(f'::error::Firebase 저장 실패 {e.code}: {e.read().decode()}')
+              print('힌트: Realtime Database 규칙에서 kbo-bet 쓰기가 허용되어야 합니다.')
+              sys.exit(2)
