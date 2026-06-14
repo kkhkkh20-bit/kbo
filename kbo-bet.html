@@ -312,12 +312,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     }).catch(function() { setSyncStatus('err', '불러오기 실패'); });
   }
 
-  function saveToDB(np, nk) {
-    return db.ref('kbo-bet').set({
-      picks:   np !== undefined ? np : picks,
-      kboRank: nk !== undefined ? nk : kboRank
-    });
-  }
+  // picks / kboRank 를 각각 자식 경로에만 기록 → 서로 절대 덮어쓰지 않음 (데이터 유실 방지)
+  function saveKbo(nk)   { return db.ref('kbo-bet/kboRank').set(nk); }
+  function savePicks(np) { return db.ref('kbo-bet/picks').set(np); }
 
   function setSyncStatus(s, msg) {
     document.getElementById('sdot').className = 'sdot ' + s;
@@ -325,12 +322,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
-
-  function sameArr(a, b) {
-    if (!a || !b || a.length !== b.length) return false;
-    for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
-    return true;
-  }
 
   // ── KBO 자동 크롤링 ───────────────────────────────────
   function fetchKboRanking() {
@@ -355,11 +346,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       chips.innerHTML = liveRank.map(function(t, i) {
         return '<span class="chip ' + (i < 5 ? 't5' : '') + '"><span class="cn">' + (i+1) + '</span>' + t + '</span>';
       }).join('');
-      // 결과 탭이 항상 최신이도록 변동 시 자동 공유 (읽기전용 규칙이면 조용히 무시)
-      var padded = liveRank.concat(Array(10).fill('')).slice(0, 10);
-      if (db && !sameArr(padded, kboRank)) {
-        saveToDB(undefined, padded).catch(function() {});
-      }
+      // 자동 저장은 하지 않음 (picks 유실 방지). 서버(GitHub Actions)가 kboRank 를 주기적으로 갱신하고,
+      // 즉시 반영이 필요하면 아래 "📤 이 순위로 저장" 버튼을 누르면 됨.
     }
 
     function tryProxy(i) {
@@ -405,7 +393,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   function applyLiveKbo() {
     if (!liveRank.length) { alert('먼저 순위를 불러와주세요!'); return; }
     var padded = liveRank.concat(Array(10).fill('')).slice(0, 10);
-    saveToDB(undefined, padded).then(function() {
+    saveKbo(padded).then(function() {
       showAlert('kboAlert', '✅ KBO 순위가 저장되었습니다!', 'ok');
     });
   }
@@ -492,7 +480,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     var newPicks = {};
     for (var k in picks) newPicks[k] = picks[k];
     newPicks[editPlayer] = editTeams;
-    saveToDB(newPicks, undefined)
+    savePicks(newPicks)
       .then(function() { showAlert('saveAlert', '✅ 저장 완료! 친구들 화면에 즉시 반영됩니다 🎉', 'ok'); })
       .catch(function() { showAlert('saveAlert', '❌ 저장 실패. 인터넷 확인해주세요.', 'er'); });
   }
@@ -514,7 +502,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       var el = document.getElementById('kbo_' + i);
       return el ? el.value : '';
     });
-    saveToDB(undefined, arr).then(function() {
+    saveKbo(arr).then(function() {
       showAlert('kboAlert', '✅ KBO 순위 저장 완료!', 'ok');
     });
   }
