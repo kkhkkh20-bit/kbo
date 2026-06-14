@@ -135,6 +135,22 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   .apicks{grid-template-columns:repeat(2,1fr);}
   .tab{font-size:.7rem;padding:7px 2px;}
 }
+/* ── 가독성 개선 ── */
+.tabs{margin-bottom:24px;}
+.tab{font-size:.86rem;padding:11px 4px;}
+.sub{font-size:.92rem;}
+.chip{font-size:.86rem;padding:5px 11px;}
+.ov-team{font-size:.9rem;}
+.ov-row{padding:8px 11px;}
+.card{padding:22px;margin-bottom:16px;}
+.card h2{font-size:1.15rem;margin-bottom:14px;}
+.rcrd{padding:18px;}
+.rname{font-size:1.2rem;}
+.sbig{font-size:1.5rem;}
+.ritem{padding:11px 12px;}
+.rteam{font-size:.95rem;}
+.ptag{font-size:.78rem;padding:4px 9px;}
+@media(max-width:600px){.tab{font-size:.74rem;padding:9px 2px;}.card{padding:16px;}}
 </style>
 </head>
 <body>
@@ -152,41 +168,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     <button class="btn btn-s btn-sm" onclick="loadFromDB()" style="margin-left:auto;">🔄</button>
   </div>
   <div class="tabs">
-    <button class="tab on" onclick="switchTab('pick')">🎯 순위 예측</button>
-    <button class="tab" onclick="switchTab('kbo')">📊 KBO 순위</button>
-    <button class="tab" onclick="switchTab('result')">🏆 결과</button>
-    <button class="tab" onclick="switchTab('all')">👀 전체</button>
+    <button class="tab on" onclick="switchTab('result')">🏆 결과</button>
+    <button class="tab" onclick="switchTab('kbo')">📊 실시간 KBO</button>
+    <button class="tab" onclick="switchTab('all')">👀 전체 예측</button>
+    <button class="tab" onclick="switchTab('pick')">🎯 순위 예측</button>
   </div>
-  <div id="panel-pick" class="panel on">
+  <div id="panel-result" class="panel on">
     <div class="card">
-      <h2>👤 참여자 선택 후 순위 조정</h2>
-      <div class="pgrid" id="playerGrid"></div>
-    </div>
-    <div class="card">
-      <h2>📋 전체 순위 예측 현황</h2>
-      <div id="overviewWrap"></div>
-      <div class="legend">
-        <div class="li"><div class="ld" style="background:var(--accent)"></div> 5강 (1~5위)</div>
-        <div class="li"><div class="ld" style="background:var(--border)"></div> 6~10위</div>
-      </div>
-    </div>
-    <div id="editArea" style="display:none">
-      <div class="card">
-        <h2 id="editTitle"></h2>
-        <div class="info-box">▲ ▼ 버튼으로 순위를 조정하세요.<br>🟡 <strong>위쪽 5팀</strong>이 "5강 예측"입니다. 저장하면 친구들에게 즉시 반영!</div>
-        <ul class="rlist" id="rankList"></ul>
-        <div class="rnote">⬆️ 1~5번이 5강 예측으로 인정됩니다</div>
-        <div class="brow">
-          <button class="btn btn-p" id="saveBtn" onclick="savePlayerPick()">💾 저장 (전체 공유)</button>
-          <button class="btn btn-s" onclick="closeEdit()">닫기</button>
-        </div>
-        <div id="saveAlert"></div>
-      </div>
+      <h2>🏆 현재 순위 결과</h2>
+      <div id="resultContent"><div class="empty"><div class="big">⏳</div><div>KBO 순위를 불러오는 중...</div></div></div>
     </div>
   </div>
   <div id="panel-kbo" class="panel">
     <div class="card">
-      <h2>📊 KBO 현재 순위</h2>
+      <h2>📊 KBO 실시간 순위</h2>
       <div class="live-box">
         <div class="live-hdr">
           <h3>🔄 자동 불러오기</h3>
@@ -213,16 +208,37 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       </details>
     </div>
   </div>
-  <div id="panel-result" class="panel">
-    <div class="card">
-      <h2>🏆 현재 순위 결과</h2>
-      <div id="resultContent"><div class="empty"><div class="big">⏳</div><div>KBO 순위를 먼저 저장해주세요!</div></div></div>
-    </div>
-  </div>
   <div id="panel-all" class="panel">
     <div class="card">
       <h2>👀 전체 예측 현황</h2>
       <div id="allContent"><div class="empty"><div class="big">📋</div><div>아직 예측이 없습니다</div></div></div>
+    </div>
+  </div>
+  <div id="panel-pick" class="panel">
+    <div class="card">
+      <h2>👤 순위 예측 <span style="font-size:.8rem;color:var(--muted);font-weight:400">(마감됨 · 보기 전용)</span></h2>
+      <div class="pgrid" id="playerGrid"></div>
+    </div>
+    <div class="card">
+      <h2>📋 전체 순위 예측 현황</h2>
+      <div id="overviewWrap"></div>
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:var(--accent)"></div> 5강 (1~5위)</div>
+        <div class="li"><div class="ld" style="background:var(--border)"></div> 6~10위</div>
+      </div>
+    </div>
+    <div id="editArea" style="display:none">
+      <div class="card">
+        <h2 id="editTitle"></h2>
+        <div class="info-box">▲ ▼ 버튼으로 순위를 조정하세요.<br>🟡 <strong>위쪽 5팀</strong>이 "5강 예측"입니다. 저장하면 친구들에게 즉시 반영!</div>
+        <ul class="rlist" id="rankList"></ul>
+        <div class="rnote">⬆️ 1~5번이 5강 예측으로 인정됩니다</div>
+        <div class="brow">
+          <button class="btn btn-p" id="saveBtn" onclick="savePlayerPick()">💾 저장 (전체 공유)</button>
+          <button class="btn btn-s" onclick="closeEdit()">닫기</button>
+        </div>
+        <div id="saveAlert"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -243,7 +259,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     {id:'yubing',   name:'유빙', emoji:'🦊'}
   ];
   var DEADLINE = new Date('2026-03-27T23:59:59');
-  var TAB_IDS  = ['pick','kbo','result','all'];
+  var TAB_IDS  = ['result','kbo','all','pick'];
+  var KBO_URL  = 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx';
+  // 여러 CORS 프록시를 순서대로 시도 (하나 죽어도 다음으로 폴백)
+  var PROXIES  = [
+    function(u){ return { url:'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),         json:false }; },
+    function(u){ return { url:'https://api.allorigins.win/get?url=' + encodeURIComponent(u),         json:true  }; },
+    function(u){ return { url:'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u),   json:false }; }
+  ];
 
   function isEditable() { return new Date() <= DEADLINE; }
 
@@ -312,6 +335,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
+  function sameArr(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
+    return true;
+  }
+
   // ── KBO 자동 크롤링 ───────────────────────────────────
   function fetchKboRanking() {
     var badge = document.getElementById('liveBadge');
@@ -320,26 +349,46 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     badge.innerHTML = '<span class="ldot"></span> 불러오는 중...';
     chips.innerHTML = '<span style="color:var(--muted);font-size:.82rem">가져오는 중...</span>';
 
-    fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx'))
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var parsed = parseKboHtml(data.contents || '');
-        if (parsed.length >= 5) {
-          liveRank = parsed;
-          badge.className = 'lbadge ok';
-          badge.innerHTML = '<span class="ldot"></span> 최신 순위';
-          var n = new Date();
-          document.getElementById('liveUpd').textContent = n.getHours() + ':' + pad(n.getMinutes()) + ' 기준';
-          chips.innerHTML = liveRank.map(function(t, i) {
-            return '<span class="chip ' + (i < 5 ? 't5' : '') + '"><span class="cn">' + (i+1) + '</span>' + t + '</span>';
-          }).join('');
-        } else { throw new Error('파싱 실패'); }
-      })
-      .catch(function() {
-        badge.className = 'lbadge err';
-        badge.innerHTML = '⚠️ 불러오기 실패';
-        chips.innerHTML = '<span style="color:var(--muted);font-size:.82rem">수동 입력을 이용해주세요</span>';
-      });
+    function fail() {
+      badge.className = 'lbadge err';
+      badge.innerHTML = '⚠️ 불러오기 실패';
+      chips.innerHTML = '<span style="color:var(--muted);font-size:.82rem">잠시 후 새로고침하거나 수동 입력을 이용해주세요</span>';
+    }
+
+    function success(parsed) {
+      liveRank = parsed;
+      badge.className = 'lbadge ok';
+      badge.innerHTML = '<span class="ldot"></span> 최신 순위';
+      var n = new Date();
+      document.getElementById('liveUpd').textContent = n.getHours() + ':' + pad(n.getMinutes()) + ' 기준';
+      chips.innerHTML = liveRank.map(function(t, i) {
+        return '<span class="chip ' + (i < 5 ? 't5' : '') + '"><span class="cn">' + (i+1) + '</span>' + t + '</span>';
+      }).join('');
+      // 결과 탭이 항상 최신이도록 변동 시 자동 공유 (읽기전용 규칙이면 조용히 무시)
+      var padded = liveRank.concat(Array(10).fill('')).slice(0, 10);
+      if (db && !sameArr(padded, kboRank)) {
+        saveToDB(undefined, padded).catch(function() {});
+      }
+    }
+
+    function tryProxy(i) {
+      if (i >= PROXIES.length) { fail(); return; }
+      var p     = PROXIES[i](KBO_URL);
+      var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, 12000);
+      fetch(p.url, ctrl ? { signal: ctrl.signal } : undefined)
+        .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return p.json ? r.json() : r.text(); })
+        .then(function(body) {
+          clearTimeout(timer);
+          var html   = p.json ? ((body && body.contents) || '') : (body || '');
+          var parsed = parseKboHtml(html);
+          if (parsed.length >= 5) success(parsed);
+          else throw new Error('parse');
+        })
+        .catch(function() { clearTimeout(timer); tryProxy(i + 1); });
+    }
+
+    tryProxy(0);
   }
 
   function parseKboHtml(html) {
