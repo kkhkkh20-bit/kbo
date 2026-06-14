@@ -170,8 +170,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   <div class="tabs">
     <button class="tab on" onclick="switchTab('result')">🏆 결과</button>
     <button class="tab" onclick="switchTab('kbo')">📊 실시간 KBO</button>
-    <button class="tab" onclick="switchTab('all')">👀 전체 예측</button>
-    <button class="tab" onclick="switchTab('pick')">🎯 순위 예측</button>
+    <button class="tab" onclick="switchTab('pick')">👀 예측 현황</button>
   </div>
   <div id="panel-result" class="panel on">
     <div class="card">
@@ -208,15 +207,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       </details>
     </div>
   </div>
-  <div id="panel-all" class="panel">
-    <div class="card">
-      <h2>👀 전체 예측 현황</h2>
-      <div id="allContent"><div class="empty"><div class="big">📋</div><div>아직 예측이 없습니다</div></div></div>
-    </div>
-  </div>
   <div id="panel-pick" class="panel">
     <div class="card">
-      <h2>👤 순위 예측 <span style="font-size:.8rem;color:var(--muted);font-weight:400">(마감됨 · 보기 전용)</span></h2>
+      <h2>👤 참여자별 예측 <span style="font-size:.8rem;color:var(--muted);font-weight:400">(마감됨 · 보기 전용)</span></h2>
       <div class="pgrid" id="playerGrid"></div>
     </div>
     <div class="card">
@@ -259,14 +252,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     {id:'yubing',   name:'유빙', emoji:'🦊'}
   ];
   var DEADLINE = new Date('2026-03-27T23:59:59');
-  var TAB_IDS  = ['result','kbo','all','pick'];
+  var TAB_IDS  = ['result','kbo','pick'];
   var KBO_URL  = 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx';
-  // 여러 CORS 프록시를 순서대로 시도 (하나 죽어도 다음으로 폴백)
-  var PROXIES  = [
-    function(u){ return { url:'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),         json:false }; },
-    function(u){ return { url:'https://api.allorigins.win/get?url=' + encodeURIComponent(u),         json:true  }; },
-    function(u){ return { url:'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u),   json:false }; }
-  ];
+  // allorigins raw/get 를 번갈아 재시도 (개별 호출이 자주 타임아웃 나므로 4회 폴백)
+  var PX_RAW   = function(u){ return { url:'https://api.allorigins.win/raw?url=' + encodeURIComponent(u), json:false }; };
+  var PX_GET   = function(u){ return { url:'https://api.allorigins.win/get?url=' + encodeURIComponent(u), json:true  }; };
+  var PROXIES  = [PX_RAW, PX_GET, PX_RAW, PX_GET];
 
   function isEditable() { return new Date() <= DEADLINE; }
 
@@ -591,26 +582,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       }).join('');
   }
 
-  function renderAll() {
-    var any = PLAYERS.some(function(p) { return picks[p.id] && picks[p.id].length === 10; });
-    if (!any) {
-      document.getElementById('allContent').innerHTML = '<div class="empty"><div class="big">📋</div><div>아직 예측이 없습니다</div></div>';
-      return;
-    }
-    function makeGrid(n) {
-      return '<div class="apicks">' + PLAYERS.map(function(p) {
-        var a = picks[p.id] || [];
-        var list = a.length === 10
-          ? '<ol>' + a.slice(0, n).map(function(t) { return '<li>' + t + '</li>'; }).join('') + '</ol>'
-          : '<p style="font-size:.78rem;color:var(--muted)">미설정</p>';
-        return '<div class="acard"><h3>' + p.emoji + ' ' + p.name + '</h3>' + list + '</div>';
-      }).join('') + '</div>';
-    }
-    document.getElementById('allContent').innerHTML =
-      '<p class="stitle">📋 각자의 5강 예측</p>' + makeGrid(5) +
-      '<p class="stitle" style="margin-top:8px">📋 전체 10팀 예측 순위</p>' + makeGrid(10);
-  }
-
   // ── 탭 ───────────────────────────────────────────────
   function switchTab(name) {
     var tabs   = document.querySelectorAll('.tab');
@@ -628,7 +599,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       TAB_IDS.forEach(function(id, i) { if (panels[i] && panels[i].classList.contains('on')) name = id; });
     }
     if (name === 'result') renderResult();
-    if (name === 'all')    renderAll();
   }
 
   // ── 알림 ─────────────────────────────────────────────
