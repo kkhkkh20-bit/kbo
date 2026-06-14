@@ -151,6 +151,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 .rteam{font-size:.95rem;}
 .ptag{font-size:.78rem;padding:4px 9px;}
 @media(max-width:600px){.tab{font-size:.74rem;padding:9px 2px;}.card{padding:16px;}}
+/* ── 5강 예측 현황 카드 (모바일 한눈에) ── */
+.pcard{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+.pc-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.pc-emo{font-size:1.3rem;}
+.pc-name{font-family:'Black Han Sans',sans-serif;font-size:1rem;letter-spacing:1px;}
+.pc-mini{margin-left:auto;font-size:.82rem;font-weight:700;color:var(--muted);}
+.pk-row{display:flex;flex-wrap:wrap;gap:6px;}
+.pk{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;font-size:.86rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--text);}
+.pk b{color:var(--muted);font-size:.7rem;font-weight:700;}
+.pk-ex{background:rgba(245,166,35,.18);border-color:var(--accent);color:var(--accent);}
+.pk-ex b{color:var(--accent);}
+.pk-ht{border-color:var(--green);color:var(--green);}
+.pk-ht b{color:var(--green);}
+.pk-ms{opacity:.4;}
 </style>
 </head>
 <body>
@@ -209,28 +223,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   </div>
   <div id="panel-pick" class="panel">
     <div class="card">
-      <h2>👤 참여자별 예측 <span style="font-size:.8rem;color:var(--muted);font-weight:400">(마감됨 · 보기 전용)</span></h2>
-      <div class="pgrid" id="playerGrid"></div>
-    </div>
-    <div class="card">
-      <h2>📋 전체 순위 예측 현황</h2>
+      <h2>👀 5강 예측 현황 <span style="font-size:.76rem;color:var(--muted);font-weight:400">(마감 · 보기 전용)</span></h2>
       <div id="overviewWrap"></div>
       <div class="legend">
-        <div class="li"><div class="ld" style="background:var(--accent)"></div> 5강 (1~5위)</div>
-        <div class="li"><div class="ld" style="background:var(--border)"></div> 6~10위</div>
-      </div>
-    </div>
-    <div id="editArea" style="display:none">
-      <div class="card">
-        <h2 id="editTitle"></h2>
-        <div class="info-box">▲ ▼ 버튼으로 순위를 조정하세요.<br>🟡 <strong>위쪽 5팀</strong>이 "5강 예측"입니다. 저장하면 친구들에게 즉시 반영!</div>
-        <ul class="rlist" id="rankList"></ul>
-        <div class="rnote">⬆️ 1~5번이 5강 예측으로 인정됩니다</div>
-        <div class="brow">
-          <button class="btn btn-p" id="saveBtn" onclick="savePlayerPick()">💾 저장 (전체 공유)</button>
-          <button class="btn btn-s" onclick="closeEdit()">닫기</button>
-        </div>
-        <div id="saveAlert"></div>
+        <div class="li"><span class="pk pk-ex" style="padding:2px 7px">✨</span> 자리까지 정확</div>
+        <div class="li"><span class="pk pk-ht" style="padding:2px 7px">✅</span> 5강 적중</div>
+        <div class="li"><span class="pk pk-ms" style="padding:2px 7px">○</span> 빗나감</div>
       </div>
     </div>
   </div>
@@ -288,7 +286,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       var d = snap.val() || {};
       picks   = d.picks   || {};
       kboRank = d.kboRank || [];
-      renderPlayerGrid();
       renderOverview();
       renderKboGrid();
       renderCurrentTab(null);
@@ -307,7 +304,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       var d = s.val() || {};
       picks   = d.picks   || {};
       kboRank = d.kboRank || [];
-      renderPlayerGrid(); renderOverview(); renderCurrentTab(null);
+      renderOverview(); renderCurrentTab(null);
       setSyncStatus('ok', '실시간 연결됨');
     }).catch(function() { setSyncStatus('err', '불러오기 실패'); });
   }
@@ -398,91 +395,35 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     });
   }
 
-  // ── 플레이어 그리드 ───────────────────────────────────
-  function renderPlayerGrid() {
-    document.getElementById('playerGrid').innerHTML = PLAYERS.map(function(p) {
-      var done = picks[p.id] && picks[p.id].length === 10;
-      return '<button class="pbtn ' + (editPlayer === p.id ? 'sel' : '') + '" onclick="APP.selectPlayer(\'' + p.id + '\')">' +
-        '<span class="emo">' + p.emoji + '</span>' + p.name +
-        '<span class="st" style="color:' + (done ? 'var(--green)' : 'var(--accent2)') + '">' + (done ? '✅ 예측 완료' : '⚠️ 미설정') + '</span>' +
-        '</button>';
-    }).join('');
+  // ── 5강 예측 현황 (top 5, 한눈에) ─────────────────────
+  function pickStatus(team, idx, top5) {
+    if (!top5.length) return 'none';
+    if (top5[idx] === team) return 'exact';
+    if (top5.indexOf(team) !== -1) return 'hit';
+    return 'miss';
   }
 
-  // ── 전체 현황 ─────────────────────────────────────────
   function renderOverview() {
-    var cols = PLAYERS.map(function(p) {
-      var arr = picks[p.id] || [], done = arr.length === 10;
-      var rows = !done
-        ? '<div class="ov-empty"><span>✏️</span><span>이름 클릭 후<br>순위 입력!</span></div>'
-        : arr.map(function(t, i) {
-            return '<div class="ov-row' + (i === 5 ? ' divtop' : '') + '">' +
-              '<span class="ov-num ' + (i < 5 ? 't5' : 'lo') + '">' + (i+1) + '</span>' +
-              '<span class="ov-team ' + (i < 5 ? 't5' : 'lo') + '">' + t + '</span></div>';
-          }).join('');
-      return '<div class="ov-col">' +
-        '<div class="ov-head"><span class="he">' + p.emoji + '</span><span class="hn">' + p.name + '</span>' +
-        '<span class="hs" style="color:' + (done ? 'var(--green)' : 'var(--accent2)') + '">' + (done ? '✅ 완료' : '⚠️ 미설정') + '</span></div>' +
-        rows + '</div>';
+    var top5 = kboRank.filter(Boolean).slice(0, 5);
+    document.getElementById('overviewWrap').innerHTML = PLAYERS.map(function(p) {
+      var arr = (picks[p.id] || []).slice(0, 5);
+      if (arr.length < 5) {
+        return '<div class="pcard"><div class="pc-head"><span class="pc-emo">' + p.emoji + '</span>' +
+          '<span class="pc-name">' + p.name + '</span>' +
+          '<span class="pc-mini" style="color:var(--accent2)">미설정</span></div></div>';
+      }
+      var hit = top5.length ? arr.filter(function(t){ return top5.indexOf(t) !== -1; }).length : 0;
+      var chips = arr.map(function(t, i) {
+        var st  = pickStatus(t, i, top5);
+        var cls = st === 'exact' ? 'pk-ex' : st === 'hit' ? 'pk-ht' : st === 'miss' ? 'pk-ms' : '';
+        var mk  = st === 'exact' ? ' ✨' : st === 'hit' ? ' ✅' : '';
+        return '<span class="pk ' + cls + '"><b>' + (i+1) + '</b>' + t + mk + '</span>';
+      }).join('');
+      var score = top5.length ? '<span class="pc-mini">' + hit + '/5 적중</span>' : '';
+      return '<div class="pcard"><div class="pc-head"><span class="pc-emo">' + p.emoji + '</span>' +
+        '<span class="pc-name">' + p.name + '</span>' + score + '</div>' +
+        '<div class="pk-row">' + chips + '</div></div>';
     }).join('');
-    document.getElementById('overviewWrap').innerHTML =
-      '<div class="ov-cols" style="grid-template-columns:repeat(' + PLAYERS.length + ',1fr)">' + cols + '</div>';
-  }
-
-  // ── 편집 영역 ─────────────────────────────────────────
-  function selectPlayer(id) {
-    editPlayer = id;
-    editTeams  = (picks[id] && picks[id].length === 10) ? picks[id].slice() : KBO_TEAMS.slice();
-    renderPlayerGrid();
-    renderEditArea();
-    document.getElementById('editArea').style.display = 'block';
-    setTimeout(function() {
-      document.getElementById('editArea').scrollIntoView({behavior:'smooth', block:'nearest'});
-    }, 50);
-  }
-
-  function closeEdit() {
-    editPlayer = null;
-    document.getElementById('editArea').style.display = 'none';
-    renderPlayerGrid();
-  }
-
-  function renderEditArea() {
-    if (!editPlayer) return;
-    var p = PLAYERS.filter(function(x) { return x.id === editPlayer; })[0];
-    var editable = isEditable();
-    document.getElementById('editTitle').textContent = p.emoji + ' ' + p.name + '의 순위 예측';
-    document.getElementById('saveBtn').disabled = !editable;
-
-    var len = editTeams.length;
-    document.getElementById('rankList').innerHTML = editTeams.map(function(team, i) {
-      var upBtn   = editable && i > 0     ? '<button onclick="APP.moveItem(' + i + ',' + (i-1) + ')" title="위로">▲</button>' : '<button disabled>▲</button>';
-      var downBtn = editable && i < len-1 ? '<button onclick="APP.moveItem(' + i + ',' + (i+1) + ')" title="아래로">▼</button>' : '<button disabled>▼</button>';
-      return '<li class="ritem' + (i === 4 ? ' highlight' : '') + '">' +
-        '<div class="rnum ' + (i < 5 ? 't5' : '') + '">' + (i+1) + '</div>' +
-        '<span class="rteam">' + team + '</span>' +
-        (editable ? '<div class="rmove">' + upBtn + downBtn + '</div>' : '') +
-        '</li>';
-    }).join('');
-  }
-
-  function moveItem(from, to) {
-    var arr = editTeams.slice();
-    var moved = arr.splice(from, 1)[0];
-    arr.splice(to, 0, moved);
-    editTeams = arr;
-    renderEditArea();
-    renderOverview();
-  }
-
-  function savePlayerPick() {
-    if (!isEditable()) return;
-    var newPicks = {};
-    for (var k in picks) newPicks[k] = picks[k];
-    newPicks[editPlayer] = editTeams;
-    savePicks(newPicks)
-      .then(function() { showAlert('saveAlert', '✅ 저장 완료! 친구들 화면에 즉시 반영됩니다 🎉', 'ok'); })
-      .catch(function() { showAlert('saveAlert', '❌ 저장 실패. 인터넷 확인해주세요.', 'er'); });
   }
 
   // ── KBO 수동 입력 ─────────────────────────────────────
@@ -531,7 +472,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       return;
     }
     var scored = PLAYERS
-      .filter(function(p) { return picks[p.id] && picks[p.id].length === 10; })
+      .filter(function(p) { return picks[p.id] && picks[p.id].length >= 5; })
       .map(function(p) {
         var sc = calcScore(picks[p.id], top5);
         return {id:p.id, name:p.name, emoji:p.emoji, picks:picks[p.id], hit:sc.hit, exact:sc.exact};
@@ -599,10 +540,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 
   // ── 전역 노출 (HTML onclick에서 호출) ─────────────────
   window.APP = {
-    selectPlayer:   selectPlayer,
-    closeEdit:      closeEdit,
-    savePlayerPick: savePlayerPick,
-    moveItem:       moveItem,
     switchTab:      switchTab,
     loadFromDB:     loadFromDB,
     fetchKboRanking:fetchKboRanking,
@@ -628,8 +565,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 <script>
 function switchTab(n)      { APP.switchTab(n); }
 function loadFromDB()      { APP.loadFromDB(); }
-function savePlayerPick()  { APP.savePlayerPick(); }
-function closeEdit()       { APP.closeEdit(); }
 function fetchKboRanking() { APP.fetchKboRanking(); }
 function applyLiveKbo()    { APP.applyLiveKbo(); }
 function saveKboManual()   { APP.saveKboManual(); }
