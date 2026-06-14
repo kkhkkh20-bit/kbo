@@ -165,6 +165,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 .pk-ht{border-color:var(--green);color:var(--green);}
 .pk-ht b{color:var(--green);}
 .pk-ms{opacity:.4;}
+/* ── KBO 순위표 (재미난 자료) ── */
+.ktable{width:100%;border-collapse:collapse;margin-top:14px;font-size:.82rem;}
+.ktable th{color:var(--muted);font-weight:700;font-size:.72rem;text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);}
+.ktable td{text-align:center;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.04);}
+.ktable tbody tr.kt5{background:rgba(245,166,35,.06);}
+.ktable .kr-rank{font-weight:700;color:var(--muted);width:24px;}
+.ktable tr.kt5 .kr-rank{color:var(--accent);}
+.ktable .kr-team{text-align:left;font-weight:700;}
+@media(max-width:600px){.ktable .kr-hide{display:none;}.ktable{font-size:.8rem;}}
 </style>
 </head>
 <body>
@@ -172,8 +181,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
 <div class="wrap">
   <header>
     <h1>⚾ KBO 순위 내기</h1>
-    <div class="sub">5만원짜리 우정의 배팅</div>
-    <div id="deadlineBadge" class="badge open">✏️ 수정 가능 (마감: 3월 27일 자정)</div>
+    <div class="sub">🍚 5만원 내기 — 진 사람이 연말에 밥 + 노는 거 쏘기</div>
+    <div id="seasonBadge" class="badge open">🔥 2026 시즌 진행 중</div>
   </header>
   <div class="sync-bar">
     <div id="sdot" class="sdot loading"></div>
@@ -207,14 +216,17 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
           <button class="btn btn-s btn-sm" onclick="applyLiveKbo()">📤 이 순위로 저장 (공유)</button>
         </div>
       </div>
+      <div id="liveTable"></div>
       <details>
-        <summary>✏️ 수동으로 직접 입력하기</summary>
+        <summary>✏️ 수동 입력 · 최종 순위 확정</summary>
         <div style="margin-top:10px">
-          <div class="info-box">자동이 안 될 때 직접 입력하세요.</div>
+          <div class="info-box">자동이 안 될 때 직접 입력하세요.<br>시즌이 끝나면(<strong>한국시리즈 포함 최종 순위</strong>) 여기서 입력 후 <strong>🔒 최종 확정</strong>을 누르면 자동 갱신이 멈추고 그 순위로 정산됩니다.</div>
           <div class="kgrid" id="kboGrid"></div>
           <div class="brow">
             <button class="btn btn-p" onclick="saveKboManual()">📊 저장 (공유)</button>
             <button class="btn btn-s" onclick="clearKboManual()">초기화</button>
+            <button class="btn btn-s" onclick="toggleLock()" id="lockBtn">🔒 최종 확정</button>
+            <span id="lockState" style="font-size:.75rem;color:var(--muted);"></span>
           </div>
           <div id="kboAlert"></div>
         </div>
@@ -249,7 +261,6 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     {id:'seobseob', name:'섭섭', emoji:'🐻'},
     {id:'yubing',   name:'유빙', emoji:'🦊'}
   ];
-  var DEADLINE = new Date('2026-03-27T23:59:59');
   var TAB_IDS  = ['result','kbo','pick'];
   var KBO_URL  = 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx';
   // allorigins raw/get 를 번갈아 재시도 (개별 호출이 자주 타임아웃 나므로 4회 폴백)
@@ -257,14 +268,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
   var PX_GET   = function(u){ return { url:'https://api.allorigins.win/get?url=' + encodeURIComponent(u), json:true  }; };
   var PROXIES  = [PX_RAW, PX_GET, PX_RAW, PX_GET];
 
-  function isEditable() { return new Date() <= DEADLINE; }
-
   // ── 상태 ─────────────────────────────────────────────
   var picks      = {};
   var kboRank    = [];
+  var kboLocked  = false;
   var liveRank   = [];
-  var editPlayer = null;
-  var editTeams  = [];
+  var liveTableData = [];
   var db;
 
   // ── Firebase 초기화 ───────────────────────────────────
@@ -284,8 +293,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     setSyncStatus('loading', 'Firebase 연결 중...');
     db.ref('kbo-bet').on('value', function(snap) {
       var d = snap.val() || {};
-      picks   = d.picks   || {};
-      kboRank = d.kboRank || [];
+      picks     = d.picks    || {};
+      kboRank   = d.kboRank  || [];
+      kboLocked = !!d.kboLocked;
+      renderSeasonBadge();
       renderOverview();
       renderKboGrid();
       renderCurrentTab(null);
@@ -302,16 +313,38 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     setSyncStatus('loading', '불러오는 중...');
     db.ref('kbo-bet').get().then(function(s) {
       var d = s.val() || {};
-      picks   = d.picks   || {};
-      kboRank = d.kboRank || [];
-      renderOverview(); renderCurrentTab(null);
+      picks     = d.picks    || {};
+      kboRank   = d.kboRank  || [];
+      kboLocked = !!d.kboLocked;
+      renderSeasonBadge(); renderOverview(); renderCurrentTab(null);
       setSyncStatus('ok', '실시간 연결됨');
     }).catch(function() { setSyncStatus('err', '불러오기 실패'); });
   }
 
-  // picks / kboRank 를 각각 자식 경로에만 기록 → 서로 절대 덮어쓰지 않음 (데이터 유실 방지)
+  // picks / kboRank / kboLocked 를 각각 자식 경로에만 기록 → 서로 절대 덮어쓰지 않음 (데이터 유실 방지)
   function saveKbo(nk)   { return db.ref('kbo-bet/kboRank').set(nk); }
   function savePicks(np) { return db.ref('kbo-bet/picks').set(np); }
+  function saveLock(b)   { return db.ref('kbo-bet/kboLocked').set(b); }
+
+  function toggleLock() {
+    var next = !kboLocked;
+    if (next && !confirm('현재 순위를 한국시리즈 포함 최종 순위로 확정할까요?\n확정하면 자동 갱신이 멈추고 이 순위로 정산됩니다.')) return;
+    saveLock(next).then(function() {
+      showAlert('kboAlert', next ? '🔒 최종 순위로 확정했습니다.' : '🔓 확정을 해제했습니다 (자동 갱신 재개).', 'ok');
+    });
+  }
+
+  function renderSeasonBadge() {
+    var b = document.getElementById('seasonBadge');
+    if (b) {
+      b.className = 'badge ' + (kboLocked ? 'closed' : 'open');
+      b.textContent = kboLocked ? '🏆 최종 결과 확정 (한국시리즈 포함)' : '🔥 2026 시즌 진행 중 · 최종 정산은 한국시리즈 후';
+    }
+    var ls = document.getElementById('lockState');
+    if (ls) ls.textContent = kboLocked ? '현재: 🔒 확정됨' : '현재: 시즌 진행 중';
+    var lb = document.getElementById('lockBtn');
+    if (lb) lb.textContent = kboLocked ? '🔓 확정 해제' : '🔒 최종 확정';
+  }
 
   function setSyncStatus(s, msg) {
     document.getElementById('sdot').className = 'sdot ' + s;
@@ -334,8 +367,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       chips.innerHTML = '<span style="color:var(--muted);font-size:.82rem">잠시 후 새로고침하거나 수동 입력을 이용해주세요</span>';
     }
 
-    function success(parsed) {
-      liveRank = parsed;
+    function success(table) {
+      liveTableData = table;
+      liveRank = table.map(function(t) { return t.team; });
       badge.className = 'lbadge ok';
       badge.innerHTML = '<span class="ldot"></span> 최신 순위';
       var n = new Date();
@@ -343,6 +377,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       chips.innerHTML = liveRank.map(function(t, i) {
         return '<span class="chip ' + (i < 5 ? 't5' : '') + '"><span class="cn">' + (i+1) + '</span>' + t + '</span>';
       }).join('');
+      renderLiveTable(table);
       // 자동 저장은 하지 않음 (picks 유실 방지). 서버(GitHub Actions)가 kboRank 를 주기적으로 갱신하고,
       // 즉시 반영이 필요하면 아래 "📤 이 순위로 저장" 버튼을 누르면 됨.
     }
@@ -356,9 +391,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
         .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return p.json ? r.json() : r.text(); })
         .then(function(body) {
           clearTimeout(timer);
-          var html   = p.json ? ((body && body.contents) || '') : (body || '');
-          var parsed = parseKboHtml(html);
-          if (parsed.length >= 5) success(parsed);
+          var html  = p.json ? ((body && body.contents) || '') : (body || '');
+          var table = parseKboTable(html);
+          if (table.length >= 5) success(table);
           else throw new Error('parse');
         })
         .catch(function() { clearTimeout(timer); tryProxy(i + 1); });
@@ -367,24 +402,50 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     tryProxy(0);
   }
 
-  function parseKboHtml(html) {
+  // 순위표 전체 파싱 (순위·팀·승·패·무·승률·게임차·최근10·연속)
+  function parseKboTable(html) {
     var map = {'KIA':'기아','KIA 타이거즈':'기아','기아':'기아','기아 타이거즈':'기아',
       'LG':'LG','LG 트윈스':'LG','KT':'KT','KT 위즈':'KT',
       '삼성':'삼성','삼성 라이온즈':'삼성','두산':'두산','두산 베어스':'두산',
       'NC':'NC','NC 다이노스':'NC','SSG':'SSG','SSG 랜더스':'SSG',
       '한화':'한화','한화 이글스':'한화','롯데':'롯데','롯데 자이언츠':'롯데',
       '키움':'키움','키움 히어로즈':'키움'};
-    var result = [];
+    var out = [];
     var tb = html.match(/<tbody>([\s\S]*?)<\/tbody>/);
-    if (!tb) return result;
+    if (!tb) return out;
     var rows = tb[1].match(/<tr>([\s\S]*?)<\/tr>/g) || [];
     for (var i = 0; i < rows.length; i++) {
       var cells = rows[i].match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (cells.length < 2) continue;
-      var raw = cells[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (map[raw]) result.push(map[raw]);
+      if (cells.length < 8) continue;
+      function txt(idx) { return cells[idx] ? cells[idx].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : ''; }
+      var name = txt(1);
+      if (!map[name]) continue;
+      out.push({
+        team: map[name], g: txt(2), w: txt(3), l: txt(4), d: txt(5),
+        pct: txt(6), gb: txt(7), last10: txt(8), streak: txt(9)
+      });
     }
-    return result;
+    return out;
+  }
+
+  function renderLiveTable(table) {
+    var el = document.getElementById('liveTable');
+    if (!el) return;
+    if (!table || !table.length) { el.innerHTML = ''; return; }
+    var body = table.map(function(t, i) {
+      return '<tr class="' + (i < 5 ? 'kt5' : '') + '">' +
+        '<td class="kr-rank">' + (i+1) + '</td>' +
+        '<td class="kr-team">' + t.team + '</td>' +
+        '<td>' + t.w + '-' + t.l + '-' + t.d + '</td>' +
+        '<td>' + t.pct + '</td>' +
+        '<td>' + (t.gb === '0' ? '-' : t.gb) + '</td>' +
+        '<td class="kr-hide">' + t.last10 + '</td>' +
+        '<td class="kr-hide">' + t.streak + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<table class="ktable"><thead><tr>' +
+      '<th>#</th><th>팀</th><th>승-패-무</th><th>승률</th><th>게임차</th>' +
+      '<th class="kr-hide">최근10</th><th class="kr-hide">연속</th></tr></thead><tbody>' +
+      body + '</tbody></table>';
   }
 
   function applyLiveKbo() {
@@ -489,11 +550,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
       if (i > 0 && (s.hit < scored[i-1].hit || (s.hit === scored[i-1].hit && s.exact < scored[i-1].exact))) rank = i + 1;
       return {id:s.id, name:s.name, emoji:s.emoji, picks:s.picks, hit:s.hit, exact:s.exact, rank:rank};
     });
-    var winners = ranked.filter(function(s) { return s.rank === 1; });
-    var per = Math.floor((PLAYERS.length - winners.length) * 50000 / Math.max(winners.length, 1));
+    var lbl  = kboLocked ? '🏆 최종 5강 (한국시리즈 포함)' : '현재 KBO 5강 (중간 집계)';
+    var note = kboLocked
+      ? '<p style="font-size:.74rem;color:var(--green);margin-top:6px">✅ 최종 확정 — 이 결과로 정산합니다.</p>'
+      : '<p style="font-size:.74rem;color:var(--muted);margin-top:6px">⏳ 시즌 진행 중 · 최종 정산은 한국시리즈까지 끝난 최종 순위 기준</p>';
 
-    el.innerHTML = '<div style="margin-bottom:12px"><p style="font-size:.8rem;color:var(--muted);margin-bottom:6px">현재 KBO 5강</p>' +
-      '<div class="prow">' + top5.map(function(t, i) { return '<span class="ptag pt-ex">' + (i+1) + '위 ' + t + '</span>'; }).join('') + '</div></div>' +
+    el.innerHTML = '<div style="margin-bottom:14px"><p style="font-size:.8rem;color:var(--muted);margin-bottom:6px">' + lbl + '</p>' +
+      '<div class="prow">' + top5.map(function(t, i) { return '<span class="ptag pt-ex">' + (i+1) + '위 ' + t + '</span>'; }).join('') + '</div>' + note + '</div>' +
       ranked.map(function(s) {
         var rk = s.rank===1?'rc1':s.rank===2?'rc2':s.rank===3?'rc3':'rcx';
         var rr = s.rank===1?'r1':s.rank===2?'r2':s.rank===3?'r3':'';
@@ -505,7 +568,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
         return '<div class="rcrd ' + rk + '"><div class="rhdr">' +
           '<div class="rrk ' + rr + '">' + em + '</div>' +
           '<div><div class="rname">' + s.emoji + ' ' + s.name + '</div>' +
-          (s.rank===1 ? '<span class="mtag mt-free">🎉 공짜밥! +' + per.toLocaleString() + '원</span>' : '<span class="mtag mt-pay">💸 5만원 내야함</span>') +
+          (s.rank===1 ? '<span class="mtag mt-free">🎉 연말에 공짜! 얻어먹기</span>' : '<span class="mtag mt-pay">💸 연말 밥+노는 거 쏘기</span>') +
           '</div><div class="rscore"><div class="sbig">' + s.hit + '/5</div><div class="slbl">5강 적중 (정확 ' + s.exact + '개)</div></div></div>' +
           '<div class="prow">' + tags + '</div></div>';
       }).join('');
@@ -545,15 +608,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:.82rem;padding:8px 0
     fetchKboRanking:fetchKboRanking,
     applyLiveKbo:   applyLiveKbo,
     saveKboManual:  saveKboManual,
-    clearKboManual: clearKboManual
+    clearKboManual: clearKboManual,
+    toggleLock:     toggleLock
   };
 
   // ── 시작 ─────────────────────────────────────────────
-  if (new Date() > DEADLINE) {
-    var b = document.getElementById('deadlineBadge');
-    b.className = 'badge closed';
-    b.textContent = '🔒 마감됨 — 수정 불가';
-  }
+  renderSeasonBadge();
   renderKboGrid();
   initFirebase();
   fetchKboRanking();
@@ -569,6 +629,7 @@ function fetchKboRanking() { APP.fetchKboRanking(); }
 function applyLiveKbo()    { APP.applyLiveKbo(); }
 function saveKboManual()   { APP.saveKboManual(); }
 function clearKboManual()  { APP.clearKboManual(); }
+function toggleLock()      { APP.toggleLock(); }
 </script>
 </body>
 </html>

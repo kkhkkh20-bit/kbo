@@ -73,6 +73,17 @@ jobs:
           teams = (teams + [''] * 10)[:10]
           print('parsed:', json.dumps(teams, ensure_ascii=False))
 
+          # 최종 확정(kboLocked=true) 상태면 덮어쓰지 않음 — 한국시리즈 포함 최종 순위 보존
+          lock_url = 'https://istar-bdc34-default-rtdb.firebaseio.com/kbo-bet/kboLocked.json'
+          try:
+              locked = json.loads(urllib.request.urlopen(lock_url, timeout=15).read().decode())
+          except Exception as e:
+              print(f'lock 확인 실패(무시하고 진행): {e}')
+              locked = False
+          if locked:
+              print('kboLocked=true → 최종 확정 상태이므로 자동 갱신 생략')
+              sys.exit(0)
+
           # Firebase RTDB 의 kboRank 자식 노드만 갱신 (picks 는 건드리지 않음)
           body = json.dumps(teams).encode()
           req = urllib.request.Request(DB_URL, data=body, method='PUT',
